@@ -1,0 +1,67 @@
+{% extends 'cuenta/base.html' %}
+
+{% block title %}Historial de Transferencias - Home Banking{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2 style="margin-bottom: 2rem;">📋 Historial de Transferencias</h2>
+
+    {% if transferencias_con_info %}
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Tipo</th>
+                    <th>Cuenta</th>
+                    <th>Monto</th>
+                    <th>Concepto</th>
+                    <th>Estado</th>
+                    <th>Referencia</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for info in transferencias_con_info %}
+                <tr>
+                    <td>{{ info.transferencia.fecha_creacion|date:"d/m/Y H:i" }}</td>
+                    <td>
+                        {% if info.es_enviada %}
+                            <span style="color: #dc3545;">📤 Enviada</span>
+                        {% else %}
+                            <span style="color: #28a745;">📥 Recibida</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ info.cuenta_relacionada.numero_cuenta }}</td>
+                    <td>
+                        {% if info.es_enviada %}
+                            <span style="color: #dc3545;">-${{ info.transferencia.monto|floatformat:2 }}</span>
+                        {% else %}
+                            <span style="color: #28a745;">+${{ info.transferencia.monto|floatformat:2 }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ info.transferencia.concepto|default:"Sin concepto" }}</td>
+                    <td>
+                        <span class="status-{{ info.transferencia.estado|lower }}">
+                            {{ info.transferencia.get_estado_display }}
+                        </span>
+                    </td>
+                    <td>
+                        <a href="{% url 'detalle_transferencia' info.transferencia.referencia %}" style="color: #667eea;">
+                            {{ info.transferencia.referencia }}
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div style="text-align: center; padding: 2rem;">
+            <p style="font-size: 1.2rem; color: #666;">No tienes transferencias registradas</p>
+            <a href="{% url 'enviar_transferencia' %}" class="btn" style="margin-top: 1rem;">Realizar Primera Transferencia</a>
+        </div>
+    {% endif %}
+</div>
+
+<div style="text-align: center; margin-top: 1rem;">
+    <a href="{% url 'dashboard' %}" class="btn btn-secondary">Volver al Dashboard</a>
+</div>
+{% endblock %}

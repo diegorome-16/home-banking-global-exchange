@@ -1,0 +1,86 @@
+{% extends 'cuenta/base.html' %}
+
+{% block title %}Detalle de Transferencia - Home Banking{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 600px; margin: 2rem auto;">
+    <h2 style="text-align: center; margin-bottom: 2rem; color: #333;">
+        {% if es_enviada %}
+            📤 Transferencia Enviada
+        {% else %}
+            📥 Transferencia Recibida
+        {% endif %}
+    </h2>
+
+    <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 10px; margin-bottom: 2rem;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div>
+                <strong>Referencia:</strong><br>
+                <span style="font-family: monospace; font-size: 1.1rem;">{{ transferencia.referencia }}</span>
+            </div>
+            <div>
+                <strong>Estado:</strong><br>
+                <span class="status-{{ transferencia.estado|lower }}">
+                    {{ transferencia.get_estado_display }}
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-bottom: 2rem;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 1rem;">
+            <div>
+                <h4>Cuenta Origen</h4>
+                <p style="font-family: monospace;">{{ transferencia.cuenta_origen.numero_cuenta }}</p>
+                <p style="font-size: 0.9rem; color: #666;">{{ transferencia.cuenta_origen.usuario.username }}</p>
+            </div>
+            <div>
+                <h4>Cuenta Destino</h4>
+                <p style="font-family: monospace;">{{ transferencia.cuenta_destino.numero_cuenta }}</p>
+                <p style="font-size: 0.9rem; color: #666;">{{ transferencia.cuenta_destino.usuario.username }}</p>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin: 2rem 0;">
+            <div style="font-size: 2rem; margin-bottom: 0.5rem;">
+                {% if es_enviada %}
+                    <span style="color: #dc3545;">-${{ transferencia.monto|floatformat:2 }}</span>
+                {% else %}
+                    <span style="color: #28a745;">+${{ transferencia.monto|floatformat:2 }}</span>
+                {% endif %}
+            </div>
+            <p style="color: #666;">Monto de la transferencia</p>
+        </div>
+
+        {% if transferencia.concepto %}
+        <div>
+            <h4>Concepto</h4>
+            <p style="background: #f8f9fa; padding: 1rem; border-radius: 5px; margin-top: 0.5rem;">
+                {{ transferencia.concepto }}
+            </p>
+        </div>
+        {% endif %}
+    </div>
+
+    <div style="background: #f8f9fa; padding: 1.5rem; border-radius: 10px;">
+        <h4 style="margin-bottom: 1rem;">Información Adicional</h4>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div>
+                <strong>Fecha de Creación:</strong><br>
+                {{ transferencia.fecha_creacion|date:"d/m/Y H:i:s" }}
+            </div>
+            {% if transferencia.fecha_procesamiento %}
+            <div>
+                <strong>Fecha de Procesamiento:</strong><br>
+                {{ transferencia.fecha_procesamiento|date:"d/m/Y H:i:s" }}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div style="text-align: center; margin-top: 2rem;">
+        <a href="{% url 'listar_transferencias' %}" class="btn btn-secondary">Volver al Historial</a>
+        <a href="{% url 'dashboard' %}" class="btn">Ir al Dashboard</a>
+    </div>
+</div>
+{% endblock %}

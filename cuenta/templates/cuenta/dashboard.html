@@ -1,0 +1,104 @@
+{% extends 'cuenta/base.html' %}
+
+{% block title %}Dashboard - Home Banking{% endblock %}
+
+{% block content %}
+<!-- Tarjeta de Saldo -->
+<div class="balance-card">
+    <h2>Tu Saldo Disponible</h2>
+    <div class="balance-amount">${{ cuenta.saldo_disponible|floatformat:2 }}</div>
+    <p>Cuenta: {{ cuenta.numero_cuenta }}</p>
+    <p>Tipo: {{ cuenta.get_tipo_cuenta_display }}</p>
+</div>
+
+<!-- Acciones Rápidas -->
+<div class="card">
+    <h3 style="margin-bottom: 1rem;">Acciones Rápidas</h3>
+    <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+        <a href="{% url 'enviar_transferencia' %}" class="btn">💸 Enviar Dinero</a>
+        <a href="{% url 'listar_transferencias' %}" class="btn btn-secondary">📋 Ver Historial</a>
+    </div>
+</div>
+
+<!-- Últimas Transferencias Enviadas -->
+{% if transferencias_enviadas %}
+<div class="card">
+    <h3 style="margin-bottom: 1rem;">Últimas Transferencias Enviadas</h3>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Cuenta Destino</th>
+                <th>Monto</th>
+                <th>Estado</th>
+                <th>Referencia</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for transferencia in transferencias_enviadas %}
+            <tr>
+                <td>{{ transferencia.fecha_creacion|date:"d/m/Y H:i" }}</td>
+                <td>{{ transferencia.cuenta_destino.numero_cuenta }}</td>
+                <td>-${{ transferencia.monto|floatformat:2 }}</td>
+                <td>
+                    <span class="status-{{ transferencia.estado|lower }}">
+                        {{ transferencia.get_estado_display }}
+                    </span>
+                </td>
+                <td>
+                    <a href="{% url 'detalle_transferencia' transferencia.referencia %}" style="color: #667eea;">
+                        {{ transferencia.referencia }}
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- Últimas Transferencias Recibidas -->
+{% if transferencias_recibidas %}
+<div class="card">
+    <h3 style="margin-bottom: 1rem;">Últimas Transferencias Recibidas</h3>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Cuenta Origen</th>
+                <th>Monto</th>
+                <th>Estado</th>
+                <th>Referencia</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for transferencia in transferencias_recibidas %}
+            <tr>
+                <td>{{ transferencia.fecha_creacion|date:"d/m/Y H:i" }}</td>
+                <td>{{ transferencia.cuenta_origen.numero_cuenta }}</td>
+                <td style="color: #28a745;">+${{ transferencia.monto|floatformat:2 }}</td>
+                <td>
+                    <span class="status-{{ transferencia.estado|lower }}">
+                        {{ transferencia.get_estado_display }}
+                    </span>
+                </td>
+                <td>
+                    <a href="{% url 'detalle_transferencia' transferencia.referencia %}" style="color: #667eea;">
+                        {{ transferencia.referencia }}
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% if not transferencias_enviadas and not transferencias_recibidas %}
+<div class="card" style="text-align: center;">
+    <h3>¡Bienvenido a tu Home Banking!</h3>
+    <p>No tienes transferencias aún. ¡Comienza enviando dinero a otra cuenta!</p>
+    <a href="{% url 'enviar_transferencia' %}" class="btn" style="margin-top: 1rem;">Enviar Primera Transferencia</a>
+</div>
+{% endif %}
+{% endblock %}

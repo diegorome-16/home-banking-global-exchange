@@ -1,0 +1,20 @@
+{% extends 'cuenta/base.html' %}
+
+{% block title %}Registro - Home Banking{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 400px; margin: 2rem auto;">
+    <h2 style="text-align: center; margin-bottom: 2rem; color: #333;">Crear Cuenta</h2>
+
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+
+        <button type="submit" class="btn" style="width: 100%;">Crear Cuenta</button>
+    </form>
+
+    <div style="text-align: center; margin-top: 1rem;">
+        <p>¿Ya tienes cuenta? <a href="{% url 'login' %}" style="color: #667eea;">Inicia sesión aquí</a></p>
+    </div>
+</div>
+{% endblock %}
