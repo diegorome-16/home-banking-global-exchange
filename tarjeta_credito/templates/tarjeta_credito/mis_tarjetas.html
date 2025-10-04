@@ -1,0 +1,96 @@
+{% extends 'cuenta/base.html' %}
+
+{% block title %}Mis Tarjetas de Crédito{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Mis Tarjetas de Crédito</h2>
+        {% if not tarjetas %}
+            <a href="{% url 'tarjeta_credito:solicitar_tarjeta' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Solicitar Tarjeta
+            </a>
+        {% endif %}
+    </div>
+
+    {% if tarjetas %}
+        <div class="row">
+            {% for tarjeta in tarjetas %}
+                <div class="col-md-6 mb-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="card-title mb-0">{{ tarjeta.get_marca_display }}</h5>
+                                <span class="badge
+                                    {% if tarjeta.estado == 'ACTIVA' %}bg-success
+                                    {% elif tarjeta.estado == 'BLOQUEADA' %}bg-warning
+                                    {% elif tarjeta.estado == 'VENCIDA' %}bg-danger
+                                    {% else %}bg-secondary{% endif %}">
+                                    {{ tarjeta.get_estado_display }}
+                                </span>
+                            </div>
+
+                            <div class="card-text">
+                                <p class="mb-2">
+                                    <strong>Número:</strong> {{ tarjeta.numero_tarjeta }}
+                                </p>
+                                <p class="mb-2">
+                                    <strong>Vence:</strong> {{ tarjeta.fecha_vencimiento|date:"m/Y" }}
+                                </p>
+                                <p class="mb-2">
+                                    <strong>Límite:</strong> ${{ tarjeta.limite_credito|floatformat:2 }}
+                                </p>
+                                <p class="mb-3">
+                                    <strong>Disponible:</strong>
+                                    <span class="text-success">${{ tarjeta.credito_disponible|floatformat:2 }}</span>
+                                </p>
+
+                                <!-- Barra de progreso del crédito utilizado -->
+                                {% with porcentaje_usado=tarjeta.credito_utilizado|floatformat:0 total=tarjeta.limite_credito|floatformat:0 %}
+                                    {% widthratio tarjeta.credito_utilizado tarjeta.limite_credito 100 as porcentaje %}
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between">
+                                            <small>Crédito Utilizado</small>
+                                            <small>{{ porcentaje }}%</small>
+                                        </div>
+                                        <div class="progress">
+                                            <div class="progress-bar
+                                                {% if porcentaje < 50 %}bg-success
+                                                {% elif porcentaje < 80 %}bg-warning
+                                                {% else %}bg-danger{% endif %}"
+                                                style="width: {{ porcentaje }}%"></div>
+                                        </div>
+                                    </div>
+                                {% endwith %}
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <div class="d-grid">
+                                <a href="{% url 'tarjeta_credito:detalle_tarjeta' tarjeta.id %}"
+                                   class="btn btn-outline-primary">
+                                    <i class="fas fa-eye"></i> Ver Detalles
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-credit-card fa-3x text-muted mb-3"></i>
+                        <h5 class="card-title">No tienes tarjetas de crédito</h5>
+                        <p class="card-text">Solicita tu primera tarjeta de crédito para comenzar a disfrutar de sus beneficios.</p>
+                        <a href="{% url 'tarjeta_credito:solicitar_tarjeta' %}" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Solicitar Tarjeta
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -6,4 +6,5 @@ urlpatterns = [
     path('lista/', views.listar_transferencias_view, name='listar_transferencias'),
     path('detalle/<str:referencia>/', views.detalle_transferencia_view, name='detalle_transferencia'),
     path('api/consultar/<str:referencia>/', views.consultar_transferencia_api, name='consultar_transferencia_api'),
+    path('api/realizar/', views.realizar_transferencia_api, name='realizar_transferencia_api'),
 ]

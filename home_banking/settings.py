@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'cuenta',
     'transferencia',
+    'tarjeta_credito',
 ]
 
 MIDDLEWARE = [

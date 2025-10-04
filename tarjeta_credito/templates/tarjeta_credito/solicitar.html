@@ -1,0 +1,64 @@
+{% extends 'cuenta/base.html' %}
+
+{% block title %}Solicitar Tarjeta de Crédito{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">Solicitar Tarjeta de Crédito</h4>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <div class="mb-3">
+                            <label for="marca" class="form-label">Marca de Tarjeta</label>
+                            <select class="form-select" id="marca" name="marca" required>
+                                {% for valor, nombre in marcas %}
+                                    <option value="{{ valor }}">{{ nombre }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">Selecciona la marca de tu preferencia</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="limite_credito" class="form-label">Límite de Crédito Solicitado</label>
+                            <select class="form-select" id="limite_credito" name="limite_credito" required>
+                                <option value="50000">$50,000</option>
+                                <option value="100000">$100,000</option>
+                                <option value="150000">$150,000</option>
+                                <option value="200000">$200,000</option>
+                                <option value="300000">$300,000</option>
+                                <option value="500000">$500,000</option>
+                            </select>
+                            <div class="form-text">El límite debe estar entre $10,000 y $500,000</div>
+                        </div>
+
+                        <div class="alert alert-info">
+                            <h6><i class="fas fa-info-circle"></i> Información importante:</h6>
+                            <ul class="mb-0">
+                                <li>La tarjeta se genera automáticamente al aprobar la solicitud</li>
+                                <li>Tendrás acceso inmediato a tu línea de crédito</li>
+                                <li>La tarjeta vence en 3 años desde su creación</li>
+                                <li>Solo puedes tener una tarjeta activa por usuario</li>
+                            </ul>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-credit-card"></i> Solicitar Tarjeta
+                            </button>
+                            <a href="{% url 'tarjeta_credito:mis_tarjetas' %}" class="btn btn-secondary">
+                                Cancelar
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

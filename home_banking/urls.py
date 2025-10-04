@@ -26,4 +26,5 @@ urlpatterns = [
     path('', redirect_to_login, name='home'),
     path('cuenta/', include('cuenta.urls')),
     path('transferencia/', include('transferencia.urls')),
+    path('tarjeta-credito/', include('tarjeta_credito.urls')),
 ]

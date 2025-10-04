@@ -124,6 +124,7 @@ def consultar_transferencia_api(request, referencia):
         # Preparar los datos de respuesta
         data = {
             'success': True,
+            'tipo': 'transferencia',
             'transferencia': {
                 'referencia': transferencia.referencia,
                 'monto': str(transferencia.monto),
@@ -152,10 +153,150 @@ def consultar_transferencia_api(request, referencia):
             'success': False,
             'error': 'Transferencia no encontrada',
             'message': f'No existe una transferencia con la referencia: {referencia}',
+            'tipo': 'transferencia',
             'transferencia': {
                 'estado': 'NO_ENCONTRADA'
             }
         }, status=200)
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': 'Error interno del servidor',
+            'message': str(e)
+        }, status=500)
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def realizar_transferencia_api(request):
+    """
+    API para realizar una transferencia entre cuentas
+    Recibe: cuenta_origen, cuenta_destino, monto, motivo
+    Retorna: datos de la transferencia creada en formato JSON
+    """
+    try:
+        # Parsear datos JSON del request
+        data = json.loads(request.body)
+
+        # Extraer parámetros requeridos
+        numero_cuenta_origen = data.get('cuenta_origen')
+        numero_cuenta_destino = data.get('cuenta_destino')
+        monto = data.get('monto')
+        motivo = data.get('motivo', '')
+
+        # Validar que todos los parámetros requeridos estén presentes
+        if not all([numero_cuenta_origen, numero_cuenta_destino, monto]):
+            return JsonResponse({
+                'success': False,
+                'error': 'Parámetros faltantes',
+                'message': 'Se requieren: cuenta_origen, cuenta_destino y monto'
+            }, status=400)
+
+        # Validar y convertir el monto
+        try:
+            monto_decimal = Decimal(str(monto))
+            if monto_decimal <= 0:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Monto inválido',
+                    'message': 'El monto debe ser mayor a cero'
+                }, status=400)
+        except (ValueError, TypeError):
+            return JsonResponse({
+                'success': False,
+                'error': 'Monto inválido',
+                'message': 'El formato del monto es incorrecto'
+            }, status=400)
+
+        # Verificar que las cuentas existen y están activas
+        try:
+            cuenta_origen = Cuenta.objects.get(numero_cuenta=numero_cuenta_origen, activa=True)
+        except Cuenta.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Cuenta origen no encontrada',
+                'message': f'No existe una cuenta activa con el número: {numero_cuenta_origen}'
+            }, status=404)
+
+        try:
+            cuenta_destino = Cuenta.objects.get(numero_cuenta=numero_cuenta_destino, activa=True)
+        except Cuenta.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Cuenta destino no encontrada',
+                'message': f'No existe una cuenta activa con el número: {numero_cuenta_destino}'
+            }, status=404)
+
+        # Verificar que no se transfiera a la misma cuenta
+        if cuenta_origen == cuenta_destino:
+            return JsonResponse({
+                'success': False,
+                'error': 'Transferencia inválida',
+                'message': 'No se puede transferir a la misma cuenta'
+            }, status=400)
+
+        # Verificar saldo suficiente
+        if cuenta_origen.saldo_disponible < monto_decimal:
+            return JsonResponse({
+                'success': False,
+                'error': 'Saldo insuficiente',
+                'message': f'Saldo disponible: {cuenta_origen.saldo_disponible}, Monto solicitado: {monto_decimal}'
+            }, status=400)
+
+        # Crear la transferencia
+        transferencia = Transferencia.objects.create(
+            cuenta_origen=cuenta_origen,
+            cuenta_destino=cuenta_destino,
+            monto=monto_decimal,
+            concepto=motivo
+        )
+
+        # Procesar la transferencia inmediatamente
+        exito, mensaje = transferencia.procesar_transferencia()
+
+        if exito:
+            # Preparar respuesta exitosa con todos los datos de la transferencia
+            response_data = {
+                'success': True,
+                'message': 'Transferencia realizada exitosamente',
+                'transferencia': {
+                    'referencia': transferencia.referencia,
+                    'monto': str(transferencia.monto),
+                    'concepto': transferencia.concepto,
+                    'estado': transferencia.estado,
+                    'estado_display': transferencia.get_estado_display(),
+                    'fecha_creacion': transferencia.fecha_creacion.isoformat(),
+                    'fecha_procesamiento': transferencia.fecha_procesamiento.isoformat() if transferencia.fecha_procesamiento else None,
+                    'cuenta_origen': {
+                        'numero_cuenta': transferencia.cuenta_origen.numero_cuenta,
+                        'usuario': transferencia.cuenta_origen.usuario.username,
+                        'saldo_actual': str(transferencia.cuenta_origen.saldo_disponible)
+                    },
+                    'cuenta_destino': {
+                        'numero_cuenta': transferencia.cuenta_destino.numero_cuenta,
+                        'usuario': transferencia.cuenta_destino.usuario.username,
+                        'saldo_actual': str(transferencia.cuenta_destino.saldo_disponible)
+                    }
+                }
+            }
+            return JsonResponse(response_data, status=201)
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': 'Error al procesar transferencia',
+                'message': mensaje,
+                'transferencia': {
+                    'referencia': transferencia.referencia,
+                    'estado': transferencia.estado
+                }
+            }, status=400)
+
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Formato JSON inválido',
+            'message': 'El cuerpo de la petición debe ser un JSON válido'
+        }, status=400)
 
     except Exception as e:
         return JsonResponse({
