@@ -16,4 +16,8 @@ urlpatterns = [
     path('api/consultar/<int:tarjeta_id>/', views.consultar_tarjeta_api, name='consultar_tarjeta_api'),
     path('api/consultar-numero/<str:numero_tarjeta>/', views.consultar_tarjeta_por_numero_api, name='consultar_tarjeta_por_numero_api'),
     path('api/consultar-datos/', views.consultar_tarjeta_por_datos_api, name='consultar_tarjeta_por_datos_api'),
+    # Endpoints para pagos y cobros
+    path('pagar/', views.pagar_con_tarjeta, name='pagar_con_tarjeta'),
+    path('cobrar/', views.cobrar_transaccion, name='cobrar_transaccion'),
+    path('transaccion/<uuid:id_transaccion>/', views.consultar_transaccion, name='consultar_transaccion'),
 ]

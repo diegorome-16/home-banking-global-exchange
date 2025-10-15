@@ -1,90 +1,50 @@
-from django.contrib import admin
-from .models import TarjetaCredito
+# from django.contrib import admin
+# from .models import TarjetaCredito, TransaccionTarjeta
 
 
-@admin.register(TarjetaCredito)
-class TarjetaCreditoAdmin(admin.ModelAdmin):
-    list_display = [
-        'numero_enmascarado',
-        'identificador_unico_corto',
-        'usuario',
-        'marca',
-        'estado',
-        'limite_credito',
-        'credito_disponible',
-        'fecha_vencimiento',
-        'esta_vencida'
-    ]
-    list_filter = [
-        'marca',
-        'estado',
-        'fecha_creacion',
-        'fecha_vencimiento'
-    ]
-    search_fields = [
-        'usuario__username',
-        'usuario__email',
-        'ultimos_4_digitos',
-        'numero_tarjeta',
-        'identificador_unico'
-    ]
-    readonly_fields = [
-        'identificador_unico',
-        'numero_tarjeta',
-        'ultimos_4_digitos',
-        'cvc',
-        'fecha_vencimiento',
-        'fecha_creacion',
-        'numero_enmascarado',
-        'esta_vencida',
-        'credito_utilizado'
-    ]
-    fieldsets = (
-        ('Información del Usuario', {
-            'fields': ('usuario',)
-        }),
-        ('Identificadores', {
-            'fields': (
-                'identificador_unico',
-                'numero_enmascarado',
-                'numero_tarjeta',
-                'ultimos_4_digitos'
-            )
-        }),
-        ('Información de la Tarjeta', {
-            'fields': (
-                'marca',
-                'cvc',
-                'fecha_vencimiento',
-                'esta_vencida'
-            )
-        }),
-        ('Estado y Límites', {
-            'fields': (
-                'estado',
-                'limite_credito',
-                'credito_disponible',
-                'credito_utilizado'
-            )
-        }),
-        ('Fechas', {
-            'fields': ('fecha_creacion',)
-        })
-    )
+# @admin.register(TarjetaCredito)
+# class TarjetaCreditoAdmin(admin.ModelAdmin):
+#     list_display = ('numero_tarjeta', 'marca', 'ultimos_4_digitos', 'usuario', 'credito_disponible', 'limite_credito', 'activa', 'fecha_creacion')
+#     list_filter = ('marca', 'activa', 'fecha_creacion')
+#     search_fields = ('numero_tarjeta', 'ultimos_4_digitos', 'usuario__username', 'usuario__email')
+#     readonly_fields = ('identificador_unico', 'numero_tarjeta', 'ultimos_4_digitos', 'fecha_creacion')
 
-    def identificador_unico_corto(self, obj):
-        return str(obj.identificador_unico)[:8] + '...'
-    identificador_unico_corto.short_description = 'ID Único'
+#     fieldsets = (
+#         ('Información Básica', {
+#             'fields': ('usuario', 'marca', 'identificador_unico', 'numero_tarjeta', 'ultimos_4_digitos')
+#         }),
+#         ('Seguridad', {
+#             'fields': ('cvc', 'fecha_vencimiento')
+#         }),
+#         ('Límites y Saldo', {
+#             'fields': ('limite_credito', 'credito_disponible')
+#         }),
+#         ('Estado', {
+#             'fields': ('activa', 'fecha_creacion')
+#         }),
+#     )
 
-    def numero_enmascarado(self, obj):
-        return obj.numero_enmascarado
-    numero_enmascarado.short_description = 'Número de Tarjeta'
 
-    def esta_vencida(self, obj):
-        return obj.esta_vencida
-    esta_vencida.boolean = True
-    esta_vencida.short_description = '¿Vencida?'
+# @admin.register(TransaccionTarjeta)
+# class TransaccionTarjetaAdmin(admin.ModelAdmin):
+#     list_display = ('id_transaccion', 'tarjeta', 'monto', 'estado', 'fecha_pago', 'fecha_cobro', 'numero_cuenta_destino')
+#     list_filter = ('estado', 'fecha_pago', 'fecha_cobro', 'tarjeta__marca')
+#     search_fields = ('id_transaccion', 'tarjeta__numero_tarjeta', 'numero_cuenta_destino', 'descripcion')
+#     readonly_fields = ('id_transaccion', 'fecha_pago')
 
-    def credito_utilizado(self, obj):
-        return f"${obj.credito_utilizado:,.2f}"
-    credito_utilizado.short_description = 'Crédito Utilizado'
+#     fieldsets = (
+#         ('Información de Transacción', {
+#             'fields': ('id_transaccion', 'tarjeta', 'monto', 'descripcion')
+#         }),
+#         ('Estado y Fechas', {
+#             'fields': ('estado', 'fecha_pago', 'fecha_cobro')
+#         }),
+#         ('Cobro', {
+#             'fields': ('numero_cuenta_destino',)
+#         }),
+#     )
+
+#     def get_readonly_fields(self, request, obj=None):
+#         if obj and obj.estado == 'cobrada':
+#             return self.readonly_fields + ('tarjeta', 'monto', 'estado', 'fecha_cobro', 'numero_cuenta_destino')
+#         return self.readonly_fields

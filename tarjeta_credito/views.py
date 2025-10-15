@@ -8,6 +8,19 @@ from .models import TarjetaCredito
 from cuenta.models import Cuenta
 import json
 
+from django.shortcuts import render, get_object_or_404
+from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+from django.utils import timezone
+from django.db import transaction
+from decimal import Decimal
+import json
+import uuid
+
+from .models import TarjetaCredito, TransaccionTarjeta
+
 
 @login_required
 def solicitar_tarjeta_view(request):
@@ -426,4 +439,264 @@ def consultar_tarjeta_por_datos_api(request):
             'encontrada': False,
             'error': 'Error interno del servidor',
             'message': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def pagar_con_tarjeta(request):
+    """
+    Endpoint para realizar un pago con tarjeta de crédito.
+    Recibe: id_tarjeta, monto
+    Retorna: éxito/error, datos de la tarjeta, id de transacción
+    """
+    try:
+        data = json.loads(request.body)
+        id_tarjeta = data.get('id_tarjeta')
+        monto = data.get('monto')
+        descripcion = data.get('descripcion', '')
+
+        # Validaciones básicas
+        if not id_tarjeta:
+            return JsonResponse({
+                'success': False,
+                'error': 'ID de tarjeta requerido',
+                'message': 'Debe proporcionar el ID de la tarjeta'
+            }, status=400)
+
+        if not monto:
+            return JsonResponse({
+                'success': False,
+                'error': 'Monto requerido',
+                'message': 'Debe proporcionar el monto a pagar'
+            }, status=400)
+
+        try:
+            monto_decimal = Decimal(str(monto))
+            if monto_decimal <= 0:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Monto inválido',
+                    'message': 'El monto debe ser mayor a 0'
+                }, status=400)
+        except (ValueError, TypeError):
+            return JsonResponse({
+                'success': False,
+                'error': 'Monto inválido',
+                'message': 'El formato del monto es incorrecto'
+            }, status=400)
+
+        # Buscar la tarjeta
+        try:
+            tarjeta = TarjetaCredito.objects.get(identificador_unico=id_tarjeta, estado='ACTIVA')
+        except TarjetaCredito.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Tarjeta no encontrada',
+                'message': 'La tarjeta especificada no existe o está inactiva'
+            }, status=404)
+
+        # Validar saldo disponible
+        if tarjeta.credito_disponible < monto_decimal:
+            return JsonResponse({
+                'success': False,
+                'error': 'Saldo insuficiente',
+                'message': f'Saldo disponible: ${tarjeta.credito_disponible}, Monto solicitado: ${monto_decimal}',
+                'saldo_disponible': float(tarjeta.credito_disponible)
+            }, status=400)
+
+        # Crear transacción y actualizar saldo
+        with transaction.atomic():
+            # Crear la transacción
+            nueva_transaccion = TransaccionTarjeta.objects.create(
+                tarjeta=tarjeta,
+                monto=monto_decimal,
+                descripcion=descripcion,
+                estado='pendiente'
+            )
+
+            # Actualizar saldo disponible
+            tarjeta.credito_disponible -= monto_decimal
+            tarjeta.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Pago realizado exitosamente',
+            'data': {
+                'id_transaccion': str(nueva_transaccion.id_transaccion),
+                'tarjeta': {
+                    'id': str(tarjeta.identificador_unico),
+                    'marca': tarjeta.marca,
+                    'ultimos_4_digitos': tarjeta.ultimos_4_digitos,
+                    'saldo_disponible_anterior': float(tarjeta.credito_disponible + monto_decimal),
+                    'saldo_disponible_actual': float(tarjeta.credito_disponible)
+                },
+                'transaccion': {
+                    'monto': float(monto_decimal),
+                    'fecha': nueva_transaccion.fecha_pago.isoformat(),
+                    'estado': nueva_transaccion.estado,
+                    'descripcion': descripcion
+                }
+            }
+        }, status=201)
+
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'JSON inválido',
+            'message': 'El formato de los datos enviados es incorrecto'
+        }, status=400)
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': 'Error interno',
+            'message': 'Ocurrió un error al procesar el pago'
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def cobrar_transaccion(request):
+    """
+    Endpoint para cobrar una transacción pendiente.
+    Recibe: id_transaccion, numero_cuenta_destino
+    Retorna: éxito/error, datos de la transacción cobrada
+    """
+    try:
+        data = json.loads(request.body)
+        id_transaccion = data.get('id_transaccion')
+        numero_cuenta_destino = data.get('numero_cuenta_destino')
+
+        # Validaciones básicas
+        if not id_transaccion:
+            return JsonResponse({
+                'success': False,
+                'error': 'ID de transacción requerido',
+                'message': 'Debe proporcionar el ID de la transacción'
+            }, status=400)
+
+        if not numero_cuenta_destino:
+            return JsonResponse({
+                'success': False,
+                'error': 'Número de cuenta requerido',
+                'message': 'Debe proporcionar el número de cuenta destino'
+            }, status=400)
+
+        # Buscar la transacción
+        try:
+            transaccion = TransaccionTarjeta.objects.get(id_transaccion=id_transaccion)
+        except TransaccionTarjeta.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Transacción no encontrada',
+                'message': 'La transacción especificada no existe'
+            }, status=404)
+
+        # Validar que la transacción esté pendiente
+        if transaccion.estado != 'pendiente':
+            return JsonResponse({
+                'success': False,
+                'error': 'Transacción no válida',
+                'message': f'La transacción ya está en estado: {transaccion.estado}',
+                'estado_actual': transaccion.estado
+            }, status=400)
+
+        # Validar que la cuenta destino exista
+        try:
+            cuenta_destino = Cuenta.objects.get(numero_cuenta=numero_cuenta_destino, activa=True)
+        except Cuenta.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Cuenta destino no encontrada',
+                'message': 'La cuenta destino especificada no existe o está inactiva'
+            }, status=404)
+        
+        # Actualizar la transacción
+        with transaction.atomic():
+            transaccion.estado = 'cobrada'
+            transaccion.fecha_cobro = timezone.now()
+            transaccion.numero_cuenta_destino = numero_cuenta_destino
+            transaccion.save()
+
+            # Acreditar a cuenta destino
+            cuenta_destino.saldo_disponible += transaccion.monto
+            cuenta_destino.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Transacción cobrada exitosamente',
+            'data': {
+                'transaccion': {
+                    'id': str(transaccion.id_transaccion),
+                    'monto': float(transaccion.monto),
+                    'estado': transaccion.estado,
+                    'fecha_pago': transaccion.fecha_pago.isoformat(),
+                    'fecha_cobro': transaccion.fecha_cobro.isoformat(),
+                    'numero_cuenta_destino': transaccion.numero_cuenta_destino,
+                    'descripcion': transaccion.descripcion
+                },
+                'tarjeta': {
+                    'marca': transaccion.tarjeta.marca,
+                    'ultimos_4_digitos': transaccion.tarjeta.ultimos_4_digitos
+                }
+            }
+        }, status=200)
+
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'JSON inválido',
+            'message': 'El formato de los datos enviados es incorrecto'
+        }, status=400)
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': 'Error interno',
+            'message': 'Ocurrió un error al procesar el cobro'
+        }, status=500)
+
+
+@require_http_methods(["GET"])
+def consultar_transaccion(request, id_transaccion):
+    """
+    Endpoint para consultar el estado de una transacción.
+    """
+    try:
+        transaccion = TransaccionTarjeta.objects.get(id_transaccion=id_transaccion)
+
+        data = {
+            'success': True,
+            'data': {
+                'transaccion': {
+                    'id': str(transaccion.id_transaccion),
+                    'monto': float(transaccion.monto),
+                    'estado': transaccion.estado,
+                    'fecha_pago': transaccion.fecha_pago.isoformat(),
+                    'fecha_cobro': transaccion.fecha_cobro.isoformat() if transaccion.fecha_cobro else None,
+                    'numero_cuenta_destino': transaccion.numero_cuenta_destino,
+                    'descripcion': transaccion.descripcion
+                },
+                'tarjeta': {
+                    'marca': transaccion.tarjeta.marca,
+                    'ultimos_4_digitos': transaccion.tarjeta.ultimos_4_digitos
+                }
+            }
+        }
+
+        return JsonResponse(data, status=200)
+
+    except TransaccionTarjeta.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Transacción no encontrada',
+            'message': 'La transacción especificada no existe'
+        }, status=404)
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': 'Error interno',
+            'message': 'Ocurrió un error al consultar la transacción'
         }, status=500)

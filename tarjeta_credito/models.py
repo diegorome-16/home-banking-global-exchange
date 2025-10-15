@@ -190,3 +190,28 @@ class TarjetaCredito(models.Model):
         verbose_name = "Tarjeta de Crédito"
         verbose_name_plural = "Tarjetas de Crédito"
         ordering = ['-fecha_creacion']
+
+
+class TransaccionTarjeta(models.Model):
+    ESTADOS_CHOICES = [
+        ('pendiente', 'Pendiente'),
+        ('cobrada', 'Cobrada'),
+        ('cancelada', 'Cancelada'),
+    ]
+
+    id_transaccion = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, primary_key=True)
+    tarjeta = models.ForeignKey(TarjetaCredito, on_delete=models.CASCADE, related_name='transacciones')
+    monto = models.DecimalField(max_digits=10, decimal_places=2)
+    estado = models.CharField(max_length=20, choices=ESTADOS_CHOICES, default='pendiente')
+    fecha_pago = models.DateTimeField(auto_now_add=True)
+    fecha_cobro = models.DateTimeField(null=True, blank=True)
+    numero_cuenta_destino = models.CharField(max_length=20, null=True, blank=True)
+    descripcion = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"Transacción {str(self.id_transaccion)[:8]} - ${self.monto}"
+
+    class Meta:
+        verbose_name = "Transacción de Tarjeta"
+        verbose_name_plural = "Transacciones de Tarjetas"
+        ordering = ['-fecha_pago']
