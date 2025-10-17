@@ -127,6 +127,101 @@ GET /transferencia/api/consultar/TRF20251002ABC12345/
 }
 ```
 
+---
+
+## Endpoints para Listar Transferencias por Usuario (NUEVO)
+
+Estos endpoints devuelven las transferencias asociadas a un usuario. Aceptan el username de dos maneras:
+
+- Recomendado: Query string en GET: `?username=<usuario>`
+- También soportado: Body JSON en GET: `{ "username": "<usuario>" }`
+
+Notas:
+- Aunque no es común enviar body en GET, el backend soporta ambas formas por conveniencia.
+- Las respuestas retornan un arreglo de objetos Transferencia con todos los campos del modelo.
+
+### GET `/cuenta/api/transferencias/enviadas/`
+
+Lista las transferencias realizadas por el usuario (donde su cuenta es cuenta_origen).
+
+Parámetros:
+- `username` (string, requerido) en query string o body JSON.
+
+Ejemplos:
+
+```bash
+# Query string (recomendado)
+curl "http://localhost:8000/cuenta/api/transferencias/enviadas/?username=karen"
+
+# Body JSON en GET (alternativo)
+curl -X GET "http://localhost:8000/cuenta/api/transferencias/enviadas/" \
+  -H "Content-Type: application/json" \
+  --data '{"username":"karen"}'
+```
+
+Respuesta (200):
+```json
+{
+  "count": 2,
+  "results": [
+    {
+      "id": 5,
+      "cuenta_origen_id": 1,
+      "cuenta_destino_id": 2,
+      "monto": "1000.50",
+      "concepto": "Pago",
+      "estado": "COMPLETADA",
+      "fecha_creacion": "2025-10-02T14:30:00.123456Z",
+      "fecha_procesamiento": "2025-10-02T14:30:00.234567Z",
+      "referencia": "TRF20251002ABC12345"
+    }
+  ]
+}
+```
+
+Errores comunes:
+
+- 400 Username requerido
+```json
+{ "detail": "username es requerido" }
+```
+
+- 404 Usuario o cuenta inexistente
+```json
+{ "detail": "Usuario no existe" }
+```
+```json
+{ "detail": "El usuario no tiene cuenta" }
+```
+
+### GET `/cuenta/api/transferencias/recibidas/`
+
+Lista las transferencias recibidas por el usuario (donde su cuenta es cuenta_destino).
+
+Parámetros y ejemplos: mismos que el endpoint de enviadas.
+
+Respuesta (200):
+```json
+{
+  "count": 1,
+  "results": [
+    {
+      "id": 7,
+      "cuenta_origen_id": 3,
+      "cuenta_destino_id": 1,
+      "monto": "2500.00",
+      "concepto": "Reembolso",
+      "estado": "COMPLETADA",
+      "fecha_creacion": "2025-10-05T12:00:00.000000Z",
+      "fecha_procesamiento": "2025-10-05T12:00:00.500000Z",
+      "referencia": "TRF20251005XYZ98765"
+    }
+  ]
+}
+```
+
+---
+
 ## Ejemplo de uso con curl:
 
 ```bash
@@ -142,6 +237,12 @@ curl -X POST http://localhost:8000/transferencia/api/realizar/ \
 
 # Consultar una transferencia
 curl -X GET http://localhost:8000/transferencia/api/consultar/TRF20251002ABC12345/
+
+# Listar transferencias por usuario (enviadas)
+curl "http://localhost:8000/cuenta/api/transferencias/enviadas/?username=karen"
+
+# Listar transferencias por usuario (recibidas)
+curl "http://localhost:8000/cuenta/api/transferencias/recibidas/?username=karen"
 ```
 
 ## Validaciones implementadas:
@@ -153,3 +254,8 @@ curl -X GET http://localhost:8000/transferencia/api/consultar/TRF20251002ABC1234
 5. **Cuentas diferentes**: No se puede transferir a la misma cuenta
 6. **Saldo suficiente**: La cuenta origen debe tener saldo suficiente
 7. **Transaccionalidad**: La operación es atómica (todo o nada)
+
+### Validaciones adicionales para listados por usuario
+- `username` es obligatorio
+- Si el usuario no existe → 404
+- Si el usuario no tiene cuenta → 404

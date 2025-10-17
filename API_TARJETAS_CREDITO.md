@@ -2,21 +2,23 @@
 
 ## Endpoints Disponibles
 
-### 1. Solicitar Nueva Tarjeta de Crédito
+### 1. Solicitar Nueva Tarjeta de Crédito (ACTUALIZADO)
 
 **POST** `/tarjeta-credito/api/solicitar/`
 
-Permite solicitar una nueva tarjeta de crédito para el usuario autenticado.
+Permite solicitar una nueva tarjeta de crédito para un usuario SIN sesión. Requiere `username` en el body.
 
 #### Parámetros de entrada (JSON):
 ```json
 {
+    "username": "usuario_destino",
     "marca": "CABAL",
     "limite_credito": 100000
 }
 ```
 
-- **marca** (string, opcional): Marca de la tarjeta. Opciones: "CABAL", "CREDICARD". Por defecto: "CABAL"
+- **username** (string, requerido): Username del titular de la tarjeta
+- **marca** (string, opcional): Marca de la tarjeta. Opciones según el modelo: "CABAL", "CREDICARD". Por defecto: "CABAL"
 - **limite_credito** (number, opcional): Límite de crédito solicitado entre $10,000 y $500,000. Por defecto: $50,000
 
 #### Respuesta exitosa (201):
@@ -35,10 +37,22 @@ Permite solicitar una nueva tarjeta de crédito para el usuario autenticado.
         "estado_display": "Activa",
         "limite_credito": "100000.00",
         "credito_disponible": "100000.00",
-        "fecha_creacion": "2025-10-03T14:30:00.123456Z"
+        "fecha_creacion": "2025-10-03T14:30:00.123456Z",
+        "usuario": "usuario_destino"
     }
 }
 ```
+
+#### Errores comunes
+- 400 username requerido
+```json
+{ "success": false, "error": "username requerido", "message": "Debe indicar el username del titular de la tarjeta" }
+```
+- 404 Usuario no encontrado
+```json
+{ "success": false, "error": "Usuario no encontrado", "message": "No existe un usuario con username: <username>" }
+```
+- 400 Marca inválida / Límite inválido
 
 ---
 
@@ -115,6 +129,43 @@ Consulta una tarjeta de crédito usando su ID interno del sistema.
 
 ---
 
+### 4. Listar Tarjetas por Usuario (NUEVO)
+
+**GET** `/tarjeta-credito/api/tarjetas/?username=<usuario>`
+
+Lista todas las tarjetas pertenecientes al usuario indicado por `username`.
+
+#### Respuesta exitosa (200):
+```json
+{
+  "success": true,
+  "usuario": "karen",
+  "count": 2,
+  "results": [
+    {
+      "id": 10,
+      "identificador_unico": "2b9e3d24-...",
+      "numero_enmascarado": "**** **** **** 1234",
+      "marca": "CABAL",
+      "marca_display": "Cabal",
+      "ultimos_4_digitos": "1234",
+      "fecha_vencimiento": "2028-10-03",
+      "estado": "ACTIVA",
+      "estado_display": "Activa",
+      "limite_credito": 100000.0,
+      "credito_disponible": 80000.0,
+      "fecha_creacion": "2025-10-03T14:30:00.123456Z"
+    }
+  ]
+}
+```
+
+#### Errores comunes
+- 400 Falta username en query string
+- 404 Usuario no encontrado
+
+---
+
 ## Casos de Uso del Identificador Único
 
 ### ¿Por qué usar el identificador único?
@@ -126,20 +177,34 @@ Consulta una tarjeta de crédito usando su ID interno del sistema.
 ### Flujo de Trabajo Recomendado:
 
 ```bash
-# 1. Consultar tarjeta por número (solo cuando sea necesario)
+# 1. Solicitar una nueva tarjeta (sin sesión)
+curl -X POST http://localhost:8000/tarjeta-credito/api/solicitar/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "usuario_destino",
+    "marca": "CABAL",
+    "limite_credito": 150000
+  }'
+
+# 2. Consultar tarjeta por número para obtener identificador único
 curl -X GET http://localhost:8000/tarjeta-credito/api/consultar-numero/1234567890123456/
 
-# 2. Obtener el identificador_unico de la respuesta
-# "identificador_unico": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+# 3. Consultar tarjeta por ID interno
+curl -X GET http://localhost:8000/tarjeta-credito/api/consultar/1/
 
-# 3. Usar el identificador_unico en APIs futuras (ejemplo conceptual)
-curl -X GET http://localhost:8000/tarjeta-credito/api/transacciones/a1b2c3d4-e5f6-7890-abcd-ef1234567890/
-curl -X POST http://localhost:8000/tarjeta-credito/api/pagar/a1b2c3d4-e5f6-7890-abcd-ef1234567890/
+# 4. Listar tarjetas por usuario
+curl -X GET "http://localhost:8000/tarjeta-credito/api/tarjetas/?username=karen"
 ```
 
 ---
 
 ## Validaciones Implementadas
+
+### Para solicitar tarjeta:
+- `username` requerido y usuario existente
+- Marca válida según `MARCA_CHOICES`: CABAL, CREDICARD
+- Límite entre 10,000 y 500,000
+- Usuario no debe tener tarjeta activa/bloqueada
 
 ### Para consulta por número:
 - **Formato de número**: Debe ser exactamente 16 dígitos
@@ -156,36 +221,3 @@ curl -X POST http://localhost:8000/tarjeta-credito/api/pagar/a1b2c3d4-e5f6-7890-
 - **fecha_vencimiento**: 3 años desde la creación
 - **estado**: ACTIVA, BLOQUEADA, VENCIDA, CANCELADA
 - **limite_credito** y **credito_disponible**: Gestión del crédito
-
----
-
-## Ejemplos de Uso con curl
-
-```bash
-# Solicitar una nueva tarjeta
-curl -X POST http://localhost:8000/tarjeta-credito/api/solicitar/ \
-  -H "Content-Type: application/json" \
-  -d '{
-    "marca": "CABAL",
-    "limite_credito": 150000
-  }'
-
-# Consultar tarjeta por número para obtener identificador único
-curl -X GET http://localhost:8000/tarjeta-credito/api/consultar-numero/1234567890123456/
-
-# Consultar tarjeta por ID interno
-curl -X GET http://localhost:8000/tarjeta-credito/api/consultar/1/
-```
-
----
-
-## Integración con el Sistema
-
-El sistema de tarjetas de crédito está completamente integrado con el home banking:
-
-1. **Dashboard**: Acceso directo desde las "Acciones Rápidas"
-2. **Navegación**: Enlaces a "Mis Tarjetas" y "Solicitar Tarjeta"
-3. **Administración**: Panel completo en Django Admin
-4. **Base de Datos**: Migraciones automáticas para el identificador único
-
-La funcionalidad está diseñada para ser escalable y permitir futuras extensiones como pagos con tarjeta, consulta de movimientos, etc.

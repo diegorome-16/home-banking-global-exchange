@@ -1,2 +1,10 @@
 .idea
 .vscode
+
+# Bytecode y caché de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# (Opcional) entorno virtual
+.venv/

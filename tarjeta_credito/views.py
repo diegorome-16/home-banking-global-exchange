@@ -18,6 +18,7 @@ from django.db import transaction
 from decimal import Decimal
 import json
 import uuid
+from django.contrib.auth.models import User
 
 from .models import TarjetaCredito, TransaccionTarjeta
 
@@ -136,103 +137,87 @@ def desbloquear_tarjeta_view(request, tarjeta_id):
 @require_http_methods(["POST"])
 def solicitar_tarjeta_api(request):
     """
-    API para solicitar una nueva tarjeta de crédito
-    Recibe: marca, limite_credito (opcional)
+    API para solicitar una tarjeta de crédito SIN sesión.
+    Body JSON:
+    {
+      "username": "usuario_destino",      # obligatorio
+      "marca": "CABAL|CREDICARD",   # opcional
+      "limite_credito": 50000             # opcional
+    }
     """
     try:
-        # Verificar autenticación (en un sistema real usarías tokens)
-        if not request.user.is_authenticated:
-            return JsonResponse({
-                'success': False,
-                'error': 'No autenticado',
-                'message': 'Debes estar autenticado para solicitar una tarjeta'
-            }, status=401)
-
-        # Parsear datos JSON
-        data = json.loads(request.body)
-        marca = data.get('marca', 'CABAL')
-        limite_credito = data.get('limite_credito', 50000)
-
-        # Verificar si el usuario ya tiene una tarjeta activa
-        tarjeta_existente = TarjetaCredito.objects.filter(
-            usuario=request.user,
-            estado__in=['ACTIVA', 'BLOQUEADA']
-        ).first()
-
-        if tarjeta_existente:
-            return JsonResponse({
-                'success': False,
-                'error': 'Tarjeta existente',
-                'message': 'Ya tienes una tarjeta de crédito activa'
-            }, status=400)
-
-        # Validar marca
-        marcas_validas = [choice[0] for choice in TarjetaCredito.MARCA_CHOICES]
-        if marca not in marcas_validas:
-            return JsonResponse({
-                'success': False,
-                'error': 'Marca inválida',
-                'message': f'Las marcas válidas son: {", ".join(marcas_validas)}'
-            }, status=400)
-
-        # Validar límite de crédito
-        try:
-            limite_decimal = float(limite_credito)
-            if limite_decimal < 10000 or limite_decimal > 500000:
-                return JsonResponse({
-                    'success': False,
-                    'error': 'Límite inválido',
-                    'message': 'El límite de crédito debe estar entre $10,000 y $500,000'
-                }, status=400)
-        except (ValueError, TypeError):
-            return JsonResponse({
-                'success': False,
-                'error': 'Límite inválido',
-                'message': 'El formato del límite de crédito es incorrecto'
-            }, status=400)
-
-        # Crear la nueva tarjeta
-        nueva_tarjeta = TarjetaCredito.objects.create(
-            usuario=request.user,
-            marca=marca,
-            limite_credito=limite_decimal,
-            credito_disponible=limite_decimal
-        )
-
-        # Preparar respuesta
-        response_data = {
-            'success': True,
-            'message': 'Tarjeta de crédito creada exitosamente',
-            'tarjeta': {
-                'id': nueva_tarjeta.id,
-                'numero_enmascarado': nueva_tarjeta.numero_enmascarado,
-                'marca': nueva_tarjeta.marca,
-                'marca_display': nueva_tarjeta.get_marca_display(),
-                'ultimos_4_digitos': nueva_tarjeta.ultimos_4_digitos,
-                'fecha_vencimiento': nueva_tarjeta.fecha_vencimiento.isoformat(),
-                'estado': nueva_tarjeta.estado,
-                'estado_display': nueva_tarjeta.get_estado_display(),
-                'limite_credito': str(nueva_tarjeta.limite_credito),
-                'credito_disponible': str(nueva_tarjeta.credito_disponible),
-                'fecha_creacion': nueva_tarjeta.fecha_creacion.isoformat()
-            }
-        }
-
-        return JsonResponse(response_data, status=201)
-
+        data = json.loads(request.body or "{}")
     except json.JSONDecodeError:
         return JsonResponse({
-            'success': False,
-            'error': 'Formato JSON inválido',
+            'success': False, 'error': 'Formato JSON inválido',
             'message': 'El cuerpo de la petición debe ser un JSON válido'
         }, status=400)
 
-    except Exception as e:
+    username = (data.get('username') or '').strip()
+    if not username:
         return JsonResponse({
-            'success': False,
-            'error': 'Error interno del servidor',
-            'message': str(e)
-        }, status=500)
+            'success': False, 'error': 'username requerido',
+            'message': 'Debe indicar el username del titular de la tarjeta'
+        }, status=400)
+
+    # Buscar usuario destino
+    try:
+        usuario = User.objects.get(username=username)
+    except User.DoesNotExist:
+        return JsonResponse({
+            'success': False, 'error': 'Usuario no encontrado',
+            'message': f'No existe un usuario con username: {username}'
+        }, status=404)
+
+    marca = data.get('marca', 'CABAL')
+    limite_credito = data.get('limite_credito', 2000000)
+
+    # Validar marca
+    marcas_validas = [choice[0] for choice in TarjetaCredito.MARCA_CHOICES]
+    if marca not in marcas_validas:
+        return JsonResponse({
+            'success': False, 'error': 'Marca inválida',
+            'message': f'Las marcas válidas son: {", ".join(marcas_validas)}'
+        }, status=400)
+
+    # Validar límite
+    try:
+        limite_decimal = float(limite_credito)
+        if limite_decimal < 10000 or limite_decimal > 999999999999:
+            return JsonResponse({
+                'success': False, 'error': 'Límite inválido',
+                'message': 'El límite de crédito debe estar entre $10,000 y $999,999,999,999'
+            }, status=400)
+    except (ValueError, TypeError):
+        return JsonResponse({
+            'success': False, 'error': 'Límite inválido',
+            'message': 'El formato del límite de crédito es incorrecto'
+        }, status=400)
+
+    # Crear tarjeta
+    nueva_tarjeta = TarjetaCredito.objects.create(
+        usuario=usuario, marca=marca,
+        limite_credito=limite_decimal, credito_disponible=limite_decimal
+    )
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Tarjeta de crédito creada exitosamente',
+        'tarjeta': {
+            'id': nueva_tarjeta.id,
+            'numero_tarjeta': nueva_tarjeta.numero_tarjeta,
+            'marca': nueva_tarjeta.marca,
+            'marca_display': nueva_tarjeta.get_marca_display(),
+            'ultimos_4_digitos': nueva_tarjeta.ultimos_4_digitos,
+            'fecha_vencimiento': nueva_tarjeta.fecha_vencimiento.isoformat(),
+            'estado': nueva_tarjeta.estado,
+            'estado_display': nueva_tarjeta.get_estado_display(),
+            'limite_credito': str(nueva_tarjeta.limite_credito),
+            'credito_disponible': str(nueva_tarjeta.credito_disponible),
+            'fecha_creacion': nueva_tarjeta.fecha_creacion.isoformat(),
+            'usuario': usuario.username
+        }
+    }, status=201)
 
 
 @require_http_methods(["GET"])
@@ -632,7 +617,7 @@ def cobrar_transaccion(request):
                     'monto': float(transaccion.monto),
                     'estado': transaccion.estado,
                     'fecha_pago': transaccion.fecha_pago.isoformat(),
-                    'fecha_cobro': transaccion.fecha_cobro.isoformat(),
+                    'fecha_cobro': transaccion.fecha_cobro.isoformat() if transaccion.fecha_cobro else None,
                     'numero_cuenta_destino': transaccion.numero_cuenta_destino,
                     'descripcion': transaccion.descripcion
                 },
@@ -700,3 +685,48 @@ def consultar_transaccion(request, id_transaccion):
             'error': 'Error interno',
             'message': 'Ocurrió un error al consultar la transacción'
         }, status=500)
+
+@require_http_methods(["GET"])
+def listar_tarjetas_usuario_api(request):
+    username = (request.GET.get('username') or '').strip()
+    if not username:
+        return JsonResponse({
+            'success': False,
+            'error': 'username requerido',
+            'message': 'Debe indicar ?username='
+        }, status=400)
+
+    try:
+        user = User.objects.get(username=username)
+    except User.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Usuario no encontrado',
+            'message': f'No existe un usuario con username: {username}'
+        }, status=404)
+
+    tarjetas = TarjetaCredito.objects.filter(usuario=user).order_by('-fecha_creacion')
+
+    resultados = []
+    for t in tarjetas:
+        # Actualizar estado si está vencida (si tu modelo lo soporta)
+        try:
+            t.actualizar_estado_si_vencida()
+        except Exception:
+            pass
+
+        resultados.append({
+            'identificador_unico': str(getattr(t, 'identificador_unico', t.id)),
+            'numero_tarjeta': t.numero_tarjeta,
+            'marca': t.marca,
+            'fecha_vencimiento': t.fecha_vencimiento.isoformat(),
+            'limite_credito': float(t.limite_credito),
+            'credito_disponible': float(t.credito_disponible),
+        })
+
+    return JsonResponse({
+        'success': True,
+        'usuario': user.username,
+        'count': len(resultados),
+        'results': resultados
+    }, status=200)
